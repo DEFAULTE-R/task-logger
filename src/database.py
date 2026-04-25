@@ -29,37 +29,49 @@ def init_db():
                 y INTEGER,
                 screenshot_before TEXT,
                 screenshot_after TEXT,
-                label TEXT DEFAULT 'unlabeled',
-                approved INTEGER DEFAULT 0
+                label TEXT,
+                approved INTEGER DEFAULT 1
             )
         """)
-        conn.commit()
 
 def create_session(name):
     with get_conn() as conn:
-        cur = conn.execute("INSERT INTO sessions (name) VALUES (?)", (name,))
-        conn.commit()
+        cur = conn.execute(
+            "INSERT INTO sessions (name) VALUES (?)",
+            (name,)
+        )
         return cur.lastrowid
 
-def insert_action(session_id, action):
+def insert_action(
+    session_id,
+    timestamp,
+    action_type,
+    detail,
+    x,
+    y,
+    screenshot_before,
+    screenshot_after
+):
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO actions
-            (session_id, timestamp, action_type, detail, x, y, screenshot_before, screenshot_after)
+            INSERT INTO actions (
+                session_id, timestamp, action_type,
+                detail, x, y,
+                screenshot_before, screenshot_after
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             session_id,
-            action['timestamp'],
-            action['action_type'],
-            action.get('detail', ''),
-            action.get('x', 0),
-            action.get('y', 0),
-            action.get('screenshot_before', ''),
-            action.get('screenshot_after', '')
+            timestamp,
+            action_type,
+            detail,
+            x,
+            y,
+            screenshot_before,
+            screenshot_after
         ))
-        conn.commit()
 
-def get_actions(session_id=None, limit=200):
+def get_actions(session_id=None, limit=100):
     with get_conn() as conn:
         if session_id:
             rows = conn.execute(
@@ -68,27 +80,16 @@ def get_actions(session_id=None, limit=200):
             ).fetchall()
         else:
             rows = conn.execute(
-                "SELECT * FROM actions ORDER BY id DESC LIMIT ?", (limit,)
+                "SELECT * FROM actions ORDER BY id DESC LIMIT ?",
+                (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
 
-def approve_action(action_id, label):
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE actions SET approved=1, label=? WHERE id=?",
-            (label, action_id)
-        )
-        conn.commit()
-
 def get_sessions():
     with get_conn() as conn:
-        rows = conn.execute("""
-            SELECT s.*, COUNT(a.id) as action_count,
-                   SUM(a.approved) as approved_count
-            FROM sessions s
-            LEFT JOIN actions a ON s.id = a.session_id
-            GROUP BY s.id ORDER BY s.id DESC
-        """).fetchall()
+        rows = conn.execute(
+            "SELECT * FROM sessions ORDER BY id DESC"
+        ).fetchall()
         return [dict(r) for r in rows]
 
 def get_stats():
@@ -96,4 +97,8 @@ def get_stats():
         total = conn.execute("SELECT COUNT(*) FROM actions").fetchone()[0]
         approved = conn.execute("SELECT COUNT(*) FROM actions WHERE approved=1").fetchone()[0]
         sessions = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
-        return {"total": total, "approved": approved, "sessions": sessions}
+        return {
+            "total": total,
+            "approved": approved,
+            "sessions": sessions
+        }
