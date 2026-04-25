@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 import src.database as db
 from src.exporter import export_dataset
 from src.simulator import simulate_session
+import os
 
 app = Flask(__name__, static_folder="web")
 
@@ -40,4 +41,4 @@ if __name__ == "__main__":
     db.init_db()
     simulate_session("demo_session_01", num_actions=60)
     simulate_session("demo_session_02", num_actions=45)
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
