@@ -102,3 +102,11 @@ def get_stats():
             "approved": approved,
             "sessions": sessions
         }
+
+def approve_action(action_id, label):
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE actions SET approved=1, label=? WHERE id=?",
+            (label, action_id)
+        )
+        conn.commit()
