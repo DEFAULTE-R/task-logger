@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Task Logger — Review UI</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f1117; color: #e2e8f0; }
+  header { background: #1a1d2e; padding: 18px 30px; border-bottom: 1px solid #2d3148; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  .dot { width: 9px; height: 9px; background: #a855f7; border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 20px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+  .stat { background: #1a1d2e; border-radius: 12px; padding: 18px; border: 1px solid #2d3148; }
+  .stat label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; display: block; margin-bottom: 6px; }
+  .stat .val { font-size: 32px; font-weight: 700; }
+  .purple { color: #a855f7; } .green { color: #22c55e; } .blue { color: #3b82f6; }
+  .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+  .toolbar select, .toolbar button { padding: 8px 14px; border-radius: 8px; border: 1px solid #2d3148; background: #1a1d2e; color: #e2e8f0; font-size: 13px; cursor: pointer; }
+  .toolbar button:hover { background: #2d3148; }
+  .export-btn { background: #7c3aed !important; border-color: #7c3aed !important; color: white !important; margin-left: auto; }
+  .table-wrap { background: #1a1d2e; border-radius: 12px; border: 1px solid #2d3148; overflow: hidden; }
+  .row { display: grid; grid-template-columns: 50px 110px 130px 1fr 80px 80px 120px; align-items: center; padding: 11px 18px; border-bottom: 1px solid #1e2235; font-size: 13px; gap: 8px; }
+  .row:hover { background: #1e2235; }
+  .row.header { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; border-bottom: 1px solid #2d3148; }
+  .badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.mouse_click { background: #1e3a5f; color: #60a5fa; }
+  .badge.key_press   { background: #2d1b4e; color: #a78bfa; }
+  .badge.scroll      { background: #14532d; color: #4ade80; }
+  .badge.drag        { background: #451a03; color: #fb923c; }
+  .badge.type        { background: #1c2a1e; color: #86efac; }
+  .approve-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid #2d3148; background: transparent; color: #94a3b8; font-size: 12px; cursor: pointer; }
+  .approve-btn.approved { background: #14532d; color: #4ade80; border-color: #14532d; }
+  .approve-btn:hover { background: #2d3148; }
+  .label-input { background: #0f1117; border: 1px solid #2d3148; color: #e2e8f0; border-radius: 4px; padding: 3px 6px; font-size: 12px; width: 110px; }
+  .empty { padding: 40px; text-align: center; color: #475569; }
+</style>
+</head>
+<body>
+<header>
+  <div class="dot"></div>
+  <h1>🧠 Task Logger — Dataset Review</h1>
+</header>
+<div class="container">
+  <div class="stats">
+    <div class="stat"><label>Total Actions</label><div class="val purple" id="total">—</div></div>
+    <div class="stat"><label>Approved</label><div class="val green" id="approved">—</div></div>
+    <div class="stat"><label>Sessions</label><div class="val blue" id="sessions">—</div></div>
+  </div>
+
+  <div class="toolbar">
+    <select id="session-filter" onchange="load()">
+      <option value="">All sessions</option>
+    </select>
+    <select id="type-filter" onchange="load()">
+      <option value="">All types</option>
+      <option>mouse_click</option>
+      <option>key_press</option>
+      <option>scroll</option>
+      <option>drag</option>
+      <option>type</option>
+    </select>
+    <button class="export-btn" onclick="exportDataset()">⬇ Export Dataset</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="row header">
+      <span>#</span><span>Type</span><span>Timestamp</span><span>Detail</span><span>X / Y</span><span>Status</span><span>Label</span>
+    </div>
+    <div id="action-list"><div class="empty">Loading...</div></div>
+  </div>
+</div>
+
+<script>
+async function loadStats() {
+  const r = await fetch('/api/stats').then(r => r.json());
+  document.getElementById('total').textContent = r.total;
+  document.getElementById('approved').textContent = r.approved;
+  document.getElementById('sessions').textContent = r.sessions;
+}
+
+async function loadSessions() {
+  const r = await fetch('/api/sessions').then(r => r.json());
+  const sel = document.getElementById('session-filter');
+  r.sessions.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = `${s.name} (${s.action_count} actions)`;
+    sel.appendChild(o);
+  });
+}
+
+async function load() {
+  const session = document.getElementById('session-filter').value;
+  const type = document.getElementById('type-filter').value;
+  let url = '/api/actions?limit=100';
+  if (session) url += `&session_id=${session}`;
+
+  const r = await fetch(url).then(r => r.json());
+  let actions = r.actions;
+  if (type) actions = actions.filter(a => a.action_type === type);
+
+  const list = document.getElementById('action-list');
+  if (!actions.length) { list.innerHTML = '<div class="empty">No actions yet. Run the simulator first.</div>'; return; }
+
+  list.innerHTML = actions.map(a => `
+    <div class="row" id="row-${a.id}">
+      <span style="color:#475569">${a.id}</span>
+      <span><div class="badge ${a.action_type}">${a.action_type}</div></span>
+      <span style="color:#475569;font-size:11px">${a.timestamp.slice(9,15)}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.detail}</span>
+      <span style="color:#475569">${a.x},${a.y}</span>
+      <button class="approve-btn ${a.approved ? 'approved' : ''}" onclick="approve(${a.id}, this)">
+        ${a.approved ? '✓ Done' : 'Approve'}
+      </button>
+      <input class="label-input" value="${a.label === 'unlabeled' ? '' : a.label}" 
+             placeholder="add label..." onblur="setLabel(${a.id}, this.value)" />
+    </div>`).join('');
+}
+
+async function approve(id, btn) {
+  const label = document.querySelector(`#row-${id} .label-input`).value || 'approved';
+  await fetch(`/api/actions/${id}/approve`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ label })
+  });
+  btn.classList.add('approved');
+  btn.textContent = '✓ Done';
+  loadStats();
+}
+
+async function setLabel(id, label) {
+  if (!label) return;
+  await fetch(`/api/actions/${id}/approve`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ label })
+  });
+  loadStats();
+}
+
+async function exportDataset() {
+  const session = document.getElementById('session-filter').value;
+  let url = '/api/export';
+  if (session) url += `?session_id=${session}`;
+  const r = await fetch(url, { method: 'POST' }).then(r => r.json());
+  alert(`Exported ${r.count} examples → ${r.file}`);
+}
+
+loadStats();
+loadSessions();
+load();
+setInterval(() => { loadStats(); load(); }, 5000);
+</script>
+</body>
+</html>
